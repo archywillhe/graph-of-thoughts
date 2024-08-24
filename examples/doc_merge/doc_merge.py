@@ -14,7 +14,7 @@ import json
 import csv
 from statistics import fmean
 from typing import Dict, List, Callable, Set, Union
-from graph_of_thoughts import controller, operations, prompter, parser
+from graph_of_thoughts import controller, language_models, operations, prompter, parser
 
 
 class DocMergePrompter(prompter.Prompter):
@@ -65,7 +65,7 @@ Here is the summary NDA <S>:
 """
 
     score_prompt_base = """The following NDA <S> merges NDAs <Doc1> - <Doc{num}>.
-Please score the merged NDA <S> in terms of how much redundant information is contained, independent of the original NDAs, as well as how much information if retained from the original NDAs. 
+Please score the merged NDA <S> in terms of how much redundant information is contained, independent of the original NDAs, as well as how much information is retained from the original NDAs.
 A score of 10 for redundancy implies that absolutely no information is redundant, while a score of 0 implies that at least half of the information is redundant (so everything is at least mentioned twice).
 A score of 10 for retained information implies that all information from the original NDAs is retained, while a score of 0 implies that no information is retained.
 You may provide reasoning for your scoring, but the final score for redundancy should be between the tags <Redundancy> and </Redundancy>, and the final score for retained information should be between the tags <Retained> and </Retained>, without any additional text within any of those tags.
@@ -219,6 +219,9 @@ NDA <S{num}>:
                 prompt += self.improve_summary_prompt_end.format(summary=current)
                 return prompt
         elif method.startswith("got"):
+            parts = (
+                sorted(list(parts)) if len(parts) > 0 else list(range(len(documents)))
+            )
             if current is None or current == "":
                 prompt += self.merge_doc_prompt_start.format(num=len(parts))
                 for i, part in enumerate(sorted(list(parts))):
@@ -546,9 +549,7 @@ def got() -> operations.GraphOfOperations:
     """
     operations_graph = operations.GraphOfOperations()
 
-    branch_factor = 10
-
-    operations_graph.append_operation(operations.Generate(1, branch_factor))
+    operations_graph.append_operation(operations.Generate(1, 5))
     operations_graph.append_operation(operations.Score(3, False))
     keep_best = operations.KeepBestN(3, True)
     operations_graph.append_operation(keep_best)
@@ -557,7 +558,7 @@ def got() -> operations.GraphOfOperations:
     keep_best2 = operations.KeepBestN(1, True)
     keep_best2.add_predecessor(keep_best)
     operations_graph.append_operation(keep_best2)
-    operations_graph.append_operation(operations.Generate(1, branch_factor))
+    operations_graph.append_operation(operations.Generate(1, 10))
     operations_graph.append_operation(operations.Score(3, False))
     keep_best3 = operations.KeepBestN(1, True)
     keep_best3.add_predecessor(keep_best2)
@@ -655,9 +656,9 @@ def run(
     """
 
     orig_budget = budget
-    path = os.path.join(os.path.dirname(__file__), "documents.csv")
+    data_path = os.path.join(os.path.dirname(__file__), "documents.csv")
     data = []
-    with open(path, "r", encoding="utf8") as f:
+    with open(data_path, "r", encoding="utf8") as f:
         reader = csv.reader(f)
         next(reader)
         for row in reader:
@@ -668,12 +669,15 @@ def run(
         data_ids = list(range(len(data)))
     selected_data = [data[i] for i in data_ids]
 
-    if not os.path.exists(os.path.join(os.path.dirname(__file__), "results")):
-        os.makedirs(os.path.join(os.path.dirname(__file__), "results"))
+    results_dir = os.path.join(os.path.dirname(__file__), "results")
+
+    if not os.path.exists(results_dir):
+        os.makedirs(results_dir)
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     extra_info = f"{lm_name}_{'-'.join([method.__name__ for method in methods])}"
-    folder_name = f"results/{extra_info}_{timestamp}"
-    os.makedirs(os.path.join(os.path.dirname(__file__), folder_name))
+    folder_name = f"{extra_info}_{timestamp}"
+    results_folder = os.path.join(results_dir, folder_name)
+    os.makedirs(results_folder)
 
     config = {
         "data": selected_data,
@@ -681,22 +685,18 @@ def run(
         "lm": lm_name,
         "budget": budget,
     }
-    with open(
-        os.path.join(os.path.dirname(__file__), folder_name, "config.json"), "w"
-    ) as f:
+    with open(os.path.join(results_folder, "config.json"), "w") as f:
         json.dump(config, f)
 
     logging.basicConfig(
-        filename=f"{folder_name}/log.log",
+        filename=os.path.join(results_folder, "log.log"),
         filemode="w",
         format="%(name)s - %(levelname)s - %(message)s",
         level=logging.DEBUG,
     )
 
     for method in methods:
-        os.makedirs(
-            os.path.join(os.path.dirname(__file__), folder_name, method.__name__)
-        )
+        os.makedirs(os.path.join(results_folder, method.__name__))
 
     for data in selected_data:
         logging.info(f"Running data {data[0]}: {data[1]}")
@@ -713,8 +713,11 @@ def run(
                     f"Budget has been depleted, stopping. Method {method.__name__} has not been run."
                 )
                 break
-            lm = controller.ChatGPT(
-                "../../graph_of_thoughts/controller/config.json",
+            lm = language_models.ChatGPT(
+                os.path.join(
+                    os.path.dirname(__file__),
+                    "../../graph_of_thoughts/language_models/config.json",
+                ),
                 model_name=lm_name,
                 cache=True,
             )
@@ -736,8 +739,7 @@ def run(
             except Exception as e:
                 logging.error(f"Exception: {e}")
             path = os.path.join(
-                os.path.dirname(__file__),
-                folder_name,
+                results_folder,
                 method.__name__,
                 f"{data[0]}.json",
             )

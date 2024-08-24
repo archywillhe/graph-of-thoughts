@@ -14,14 +14,16 @@ In order to use this framework, you need to have a working installation of Pytho
 
 ### Installing GoT
 
-If you are a user and you just want to use `graph_of_thoughts`, you can install it directly from the source with pip.  
-If you are a developer and you want to modify the code, you can install it in editable mode by adding the `-e` flag to the pip command.
-Activate your Python environment (if any), and run:
-
+Before running either of the following two installation methods, make sure to activate your Python environment (if any) beforehand.  
+If you are a user and you just want to use `graph_of_thoughts`, you can install it directly from PyPI:
+```bash
+pip install graph_of_thoughts
+```
+If you are a developer and you want to modify the code, you can install it in editable mode from source:
 ```bash
 git clone https://github.com/spcl/graph-of-thoughts.git
 cd graph-of-thoughts
-pip install .
+pip install -e .
 ```
 
 ### Configuring the LLM
@@ -36,7 +38,7 @@ Make sure you have followed the [Setup Guide](#setup-guide) before running the c
 
 ```python
 from examples.sorting.sorting_032 import SortingPrompter, SortingParser, utils
-from graph_of_thoughts import controller, operations
+from graph_of_thoughts import controller, language_models, operations
 
 # Problem input
 
@@ -49,7 +51,7 @@ gop.append_operation(operations.Score(scoring_function=utils.num_errors))
 gop.append_operation(operations.GroundTruth(utils.test_sorting))
 
 # Configure the Language Model (Assumes config.json is in the current directory with OpenAI API key)
-lm = controller.ChatGPT("config.json", model_name="chatgpt")
+lm = language_models.ChatGPT("config.json", model_name="chatgpt")
 
 # Create the Controller
 ctrl = controller.Controller(
@@ -57,7 +59,7 @@ ctrl = controller.Controller(
   gop, 
   SortingPrompter(), 
   SortingParser(),
-  # The following dictionary is used to configure the inital thought state
+  # The following dictionary is used to configure the initial thought state
   {
     "original": to_be_sorted,
     "current": "",
@@ -74,7 +76,7 @@ To run the more sophisticated GoT approach, you can use the following code snipp
 
 ```python
 from examples.sorting.sorting_032 import SortingPrompter, SortingParser, got, utils
-from graph_of_thoughts import controller, operations
+from graph_of_thoughts import controller, language_models, operations
 
 # Problem input
 
@@ -84,7 +86,7 @@ to_be_sorted = "[0, 2, 6, 3, 8, 7, 1, 1, 6, 7, 7, 7, 7, 9, 3, 0, 1, 7, 9, 1, 3, 
 gop = got()
 
 # Configure the Language Model (Assumes config.json is in the current directory with OpenAI API key)
-lm = controller.ChatGPT("config.json", model_name="chatgpt")
+lm = language_models.ChatGPT("config.json", model_name="chatgpt")
 
 # Create the Controller
 ctrl = controller.Controller(
@@ -92,7 +94,7 @@ ctrl = controller.Controller(
   gop, 
   SortingPrompter(), 
   SortingParser(),
-  # The following dictionary is used to configure the inital thought state
+  # The following dictionary is used to configure the initial thought state
   {
     "original": to_be_sorted,
     "current": "",
@@ -119,7 +121,13 @@ We took extra care to fully document the code, so that you can easily understand
 The [examples](examples) directory contains several examples of problems that can be solved using the framework, including the ones presented in the paper.  
 It is a great starting point for learning how to use the framework to solve real problems.  
 Each example contains a `README.md` file with instructions on how to run it and play with it. The code is fully documented and should be easy to follow.
+You can also run the examples straight from the main directory. Note that the results will be stored in the respective examples sub-directory.
 
+Try for instance:
+```bash
+python -m examples.sorting.sorting_032
+python -m examples.keyword_counting.keyword_counting
+```
 ## Paper Results
 
 You can run the experiments from the paper by following the instructions in the [examples](examples) directory.  
@@ -127,14 +135,22 @@ However, if you just want to inspect and replot the results, you can use the [pa
 
 ## Citations
 
-Any published work which uses this software should include the following citation:
+If you find this repository valuable, please give it a star!  
+Got any questions or feedback? Feel free to reach out to [nils.blach@inf.ethz.ch](mailto:nils.blach@inf.ethz.ch) or open an issue.  
+Using this in your work? Please reference us using the provided citation:
 
 ```bibtex
-@misc{besta2023got,
+@article{besta2024got,
   title = {{Graph of Thoughts: Solving Elaborate Problems with Large Language Models}},
   author = {Besta, Maciej and Blach, Nils and Kubicek, Ales and Gerstenberger, Robert and Gianinazzi, Lukas and Gajda, Joanna and Lehmann, Tomasz and Podstawski, Micha{\l} and Niewiadomski, Hubert and Nyczyk, Piotr and Hoefler, Torsten},
-  year = 2023,
-  eprinttype = {arXiv},
-  eprint = {2308.09687}
+  year = 2024,
+  month = {Mar},
+  journal = {Proceedings of the AAAI Conference on Artificial Intelligence},
+  volume = 38,
+  number = 16,
+  pages = {17682-17690},
+  publisher = {AAAI Press},
+  doi = {10.1609/aaai.v38i16.29720},
+  url = {https://ojs.aaai.org/index.php/AAAI/article/view/29720}
 }
 ```
